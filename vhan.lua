@@ -1,205 +1,238 @@
--- VHAN CORE SYSTEM v1.0
--- Roblox Studio - StarterPlayerScripts
--- Functional UI + task lifecycle + pause/mode/stop
-
+-- Vhan Hub - One Piece Edition with Auto Steal & 3D VN Logo
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local localPlayer = Players.LocalPlayer
+local playerGui = localPlayer:WaitForChild("PlayerGui")
 
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
-
-local VHAN = {
-    Running = false,
-    Paused = false,
-    Mode = 1,
-    Modes = {"SAFE", "BALANCED", "FAST"},
-    TaskName = "Idle",
-    TaskToken = 0,
-}
-
-local function stopTask()
-    VHAN.TaskToken += 1
-    VHAN.Running = false
-    VHAN.Paused = false
-    VHAN.TaskName = "Idle"
+-- Hapus GUI lama jika ada
+if playerGui:FindFirstChild("VhanAnimeHub") then
+    playerGui.VhanAnimeHub:Destroy()
 end
 
-local function startTask(name, callback)
-    stopTask()
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "VhanAnimeHub"
+screenGui.Parent = playerGui
+screenGui.ResetOnSpawn = false
 
-    VHAN.TaskToken += 1
-    local myToken = VHAN.TaskToken
+-- 1. TOMBOL LOGO VN 3D UNGU (Floating Button)
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Name = "VNLogo"
+toggleBtn.Parent = screenGui
+toggleBtn.BackgroundColor3 = Color3.fromRGB(110, 30, 200) -- Warna ungu
+toggleBtn.Position = UDim2.new(0.05, 0, 0.4, 0)
+toggleBtn.Size = UDim2.new(0, 55, 0, 55)
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.Text = "VN"
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.TextSize = 20
 
-    VHAN.Running = true
-    VHAN.Paused = false
-    VHAN.TaskName = name
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(1, 0) -- Membuatnya bulat sempurna (efek 3D)
+btnCorner.Parent = toggleBtn
 
-    task.spawn(function()
-        while VHAN.TaskToken == myToken and VHAN.Running do
-            if not VHAN.Paused then
-                local ok, err = pcall(callback)
+local btnStroke = Instance.new("UIStroke")
+btnStroke.Color = Color3.fromRGB(200, 150, 255)
+btnStroke.Thickness = 3
+btnStroke.Parent = toggleBtn
 
-                if not ok then
-                    warn("[VHAN] Task error:", err)
-                    stopTask()
-                    break
+-- 2. FRAME UTAMA (MENU DENGAN BACKGROUND ANIME ONE PIECE)
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Parent = screenGui
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+mainFrame.Position = UDim2.new(0.5, -140, 0.3, 0)
+mainFrame.Size = UDim2.new(0, 280, 0, 340)
+mainFrame.Visible = false -- Mulanya tersembunyi, muncul kalau logo VN diketuk
+mainFrame.Active = true
+mainFrame.Draggable = true
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 10)
+mainCorner.Parent = mainFrame
+
+-- Background Gambar Anime One Piece (Menggunakan asset gambar publik Roblox bertema One Piece/Luffy)
+local bgImage = Instance.new("ImageLabel")
+bgImage.Parent = mainFrame
+bgImage.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+bgImage.BackgroundTransparency = 1
+bgImage.Size = UDim2.new(1, 0, 1, 0)
+bgImage.Image = "rbxassetid://6071575919" -- Gambar latar belakang bertema anime
+bgImage.ImageTransparency = 0.4 -- Agar tidak terlalu silau dan tombol tetap terlihat jelas
+bgImage.ScaleType = Enum.ScaleType.Slice
+
+-- Judul Menu
+local title = Instance.new("TextLabel")
+title.Parent = mainFrame
+title.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+title.BackgroundTransparency = 0.3
+title.Size = UDim2.new(1, 0, 0, 40)
+title.Font = Enum.Font.GothamBold
+title.Text = "  🏴‍☠️ Vhan Hub | One Piece Edition"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 13
+title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Tombol Buka/Tutup Menu via Logo VN 3D
+toggleBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = not mainFrame.Visible
+end)
+
+-- Tombol Tutup (X)
+local closeBtn = Instance.new("TextButton")
+closeBtn.Parent = title
+closeBtn.BackgroundTransparency = 1
+closeBtn.Position = UDim2.new(1, -40, 0, 0)
+closeBtn.Size = UDim2.new(0, 40, 0, 40)
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.Text = "X"
+closeBtn.TextColor3 = Color3.fromRGB(220, 220, 220)
+closeBtn.TextSize = 14
+
+closeBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = false
+end)
+
+-- Container / Tempat Tombol Fitur
+local scroll = Instance.new("ScrollingFrame")
+scroll.Parent = mainFrame
+scroll.BackgroundTransparency = 1
+scroll.BorderSizePixel = 0
+scroll.Position = UDim2.new(0, 0, 0, 45)
+scroll.Size = UDim2.new(1, 0, 1, -45)
+scroll.CanvasSize = UDim2.new(0, 0, 0, 380)
+scroll.ScrollBarThickness = 3
+
+local layout = Instance.new("UIListLayout")
+layout.Parent = scroll
+layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.Padding = UDim.new(0, 8)
+
+-- Fungsi Pembuat Tombol Fitur
+local function createButton(text, callback)
+    local btn = Instance.new("TextButton")
+    btn.Parent = scroll
+    btn.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    btn.BackgroundTransparency = 0.4
+    btn.Size = UDim2.new(0, 250, 0, 36)
+    btn.Font = Enum.Font.GothamSemibold
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 13
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = btn
+    
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(140, 80, 255)
+    stroke.Transparency = 0.5
+    stroke.Parent = btn
+    
+    btn.MouseButton1Click:Connect(callback)
+    return btn
+end
+
+-- 1. FITUR AUTO STEAL (Mengambil dan Membawa Pulang Telur)
+local autoStealOn = false
+createButton("🥚 Auto Steal Egg: OFF", function(btn)
+    autoStealOn = not autoStealOn
+    -- Update teks tombol manual lewat event
+end)
+
+-- Logika Utama Auto Steal untuk Steal an Egg
+task.spawn(function()
+    while true do
+        task.run(function()
+            if autoStealOn then
+                local char = localPlayer.Character
+                if char and char:FindFirstChild("HumanoidRootPart") then
+                    -- Mencari objek telur di dalam workspace game
+                    for _, obj in pairs(workspace:GetDescendants()) do
+                        if obj:IsA("Model") and (string.lower(obj.Name):find("egg") or obj:FindFirstChild("TouchInterest")) then
+                            -- Mengecek apakah ada bagian utama telur yang bisa disentuh/diambil
+                            local handle = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                            if handle then
+                                -- Memindahkan posisi karakter ke telur secara otomatis untuk mengambilnya
+                                local oldPos = char.HumanoidRootPart.CFrame
+                                char.HumanoidRootPart.CFrame = handle.CFrame
+                                task.wait(0.2)
+                                
+                                -- Mencari sarang/base pemain untuk membawa pulang telur
+                                local base = workspace:FindFirstChild("Bases") or workspace:FindFirstChild("Plots")
+                                if base then
+                                    -- Teleport kembali ke area markas pemain
+                                    char.HumanoidRootPart.CFrame = oldPos
+                                end
+                            end
+                        end
+                    end
                 end
             end
-
-            task.wait(0.1)
-        end
-    end)
-end
-
--- GUI
-local gui = Instance.new("ScreenGui")
-gui.Name = "VHAN_Core"
-gui.ResetOnSpawn = false
-gui.Parent = playerGui
-
-local panel = Instance.new("Frame")
-panel.Name = "MainPanel"
-panel.Size = UDim2.fromOffset(280, 250)
-panel.Position = UDim2.new(0.5, -140, 0.5, -125)
-panel.BackgroundColor3 = Color3.fromRGB(24, 17, 20)
-panel.BorderSizePixel = 0
-panel.Parent = gui
-
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 12)
-corner.Parent = panel
-
-local stroke = Instance.new("UIStroke")
-stroke.Color = Color3.fromRGB(220, 45, 35)
-stroke.Thickness = 2
-stroke.Parent = panel
-
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -20, 0, 42)
-title.Position = UDim2.fromOffset(10, 4)
-title.BackgroundTransparency = 1
-title.Text = "VHAN  •  CORE"
-title.TextColor3 = Color3.fromRGB(255, 194, 65)
-title.Font = Enum.Font.GothamBold
-title.TextSize = 20
-title.Parent = panel
-
-local status = Instance.new("TextLabel")
-status.Size = UDim2.new(1, -20, 0, 36)
-status.Position = UDim2.fromOffset(10, 47)
-status.BackgroundColor3 = Color3.fromRGB(42, 30, 33)
-status.TextColor3 = Color3.fromRGB(255, 255, 255)
-status.Font = Enum.Font.Gotham
-status.TextSize = 12
-status.Parent = panel
-
-local statusCorner = Instance.new("UICorner")
-statusCorner.CornerRadius = UDim.new(0, 7)
-statusCorner.Parent = status
-
-local function refresh()
-    local state = "READY"
-    if VHAN.Running and VHAN.Paused then
-        state = "PAUSED"
-    elseif VHAN.Running then
-        state = "RUNNING"
-    end
-
-    status.Text = string.format(
-        "STATE: %s  |  TASK: %s  |  MODE: %s",
-        state, VHAN.TaskName, VHAN.Modes[VHAN.Mode]
-    )
-end
-
-local function makeButton(text, y, color, callback)
-    local button = Instance.new("TextButton")
-    button.Size = UDim2.new(1, -24, 0, 36)
-    button.Position = UDim2.fromOffset(12, y)
-    button.BackgroundColor3 = color
-    button.TextColor3 = Color3.new(1, 1, 1)
-    button.Font = Enum.Font.GothamBold
-    button.TextSize = 13
-    button.Text = text
-    button.AutoButtonColor = true
-    button.Parent = panel
-
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, 7)
-    c.Parent = button
-
-    button.Activated:Connect(callback)
-    return button
-end
-
-makeButton("START DEMO TASK", 92,
-    Color3.fromRGB(145, 37, 30), function()
-        startTask("Demo", function()
-            -- Contoh tugas nyata yang aman: memperbarui status.
-            -- Ganti callback ini dengan logika game milikmu.
-            refresh()
         end)
-        refresh()
-    end)
+        task.wait(1)
+    end
+end)
 
-makeButton("PAUSE / RESUME", 134,
-    Color3.fromRGB(125, 82, 25), function()
-        if VHAN.Running then
-            VHAN.Paused = not VHAN.Paused
+-- 2. Tombol Speed Boost
+local speedOn = false
+createButton("⚡ Toggle Speed Boost (50)", function()
+    speedOn = not speedOn
+    local char = localPlayer.Character
+    if char and char:FindFirstChild("Humanoid") then
+        char.Humanoid.WalkSpeed = speedOn and 50 or 16
+    end
+end)
+
+-- 3. Tombol Super Jump
+local jumpOn = false
+createButton("🦘 Toggle Super Jump (120)", function()
+    jumpOn = not jumpOn
+    local char = localPlayer.Character
+    if char and char:FindFirstChild("Humanoid") then
+        char.Humanoid.JumpPower = jumpOn and 120 or 50
+    end
+end)
+
+-- 4. Tombol Teleport ke Markas/Sarang
+createButton("📍 Teleport ke Sarang", function()
+    local char = localPlayer.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        char.HumanoidRootPart.CFrame = CFrame.new(0, 35, 0)
+    end
+end)
+
+-- 5. Tombol Infinite Jump
+local infJumpOn = false
+createButton("🚀 Toggle Infinite Jump", function()
+    infJumpOn = not infJumpOn
+end)
+
+UserInputService.JumpRequest:Connect(function()
+    if infJumpOn then
+        local char = localPlayer.Character
+        if char and char:FindFirstChildOfClass("Humanoid") then
+            char:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
         end
-        refresh()
-    end)
+    end
+end)
 
-makeButton("CHANGE MODE", 176,
-    Color3.fromRGB(70, 55, 100), function()
-        VHAN.Mode = (VHAN.Mode % #VHAN.Modes) + 1
-        refresh()
-    end)
+-- 6. Tombol Noclip (Tembus Dinding)
+local noclipOn = false
+createButton("👻 Toggle Noclip (Tembus)", function()
+    noclipOn = not noclipOn
+end)
 
-makeButton("STOP TASK", 218,
-    Color3.fromRGB(75, 35, 38), function()
-        stopTask()
-        refresh()
-    end)
-
--- Drag panel using mouse or touch
-local dragging = false
-local dragInput
-local dragStart
-local startPosition
-
-title.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPosition = panel.Position
-
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
+RunService.Stepped:Connect(function()
+    if noclipOn then
+        local char = localPlayer.Character
+        if char then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
             end
-        end)
+        end
     end
 end)
-
-title.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement
-        or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and input == dragInput then
-        local delta = input.Position - dragStart
-        panel.Position = UDim2.new(
-            startPosition.X.Scale,
-            startPosition.X.Offset + delta.X,
-            startPosition.Y.Scale,
-            startPosition.Y.Offset + delta.Y
-        )
-    end
-end)
-
-refresh()
-print("[VHAN] Core loaded successfully.")
